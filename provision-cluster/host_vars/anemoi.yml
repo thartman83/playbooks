@@ -6,10 +6,11 @@ vm_cluster_vms:
   - zephyrus
   - notus
   - eurus
-vm_diskspace: 20G
+vm_diskspace: 35G
 vm_mem: 2048
 vm_cpus: 1
 ssh_pub_key: ~/.ssh/anemoi_rsa.pub
+domain_ca_cert: ~/ca.crt
 
 python_lxml_package: python-lxml
 qemu_package: qemu-system-x86
@@ -22,6 +23,7 @@ virt_install_package: virt-install
 bridge_utils_package: bridge-utils
 qemu_img_package: qemu-img
 libvirt_package: libvirt
+dnspython_package: python-dnspython
 
 libvirtd_service: libvirtd
 

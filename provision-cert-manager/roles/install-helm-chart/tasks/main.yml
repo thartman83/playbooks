@@ -11,5 +11,5 @@
    update_repo_cache: true
    wait: true
    set_values:
-     - value: installCRDs=true
-       value_type: string
+     - value: crds.enabled=true
+       value_type: raw

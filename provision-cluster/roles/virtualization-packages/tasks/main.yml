@@ -14,4 +14,5 @@
       - "{{ qemu_img_package }}"
       - "{{ libvirt_package }}"
       - "{{ guestfs_tools_package }}"
+      - "{{ dnspython_package }}"
     state: present

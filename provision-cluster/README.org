@@ -16,8 +16,16 @@
   - [[#risks][Risks]]
   - [[#naming-conventions][Naming Conventions]]
   - [[#usage][Usage]]
+  - [[#additional-configurations][Additional Configurations]]
+  - [[#debuging][Debuging]]
 - [[#inventory][Inventory]]
 - [[#host-variables][Host Variables]]
+  - [[#host-information][Host Information]]
+  - [[#virtual-machine-configuration][Virtual Machine configuration]]
+  - [[#vm-host-package-installation][VM host package installation]]
+  - [[#vm-host-services][VM Host Services]]
+  - [[#vm-image-definition][VM Image definition]]
+  - [[#vm-cluster-pool][VM Cluster Pool]]
 - [[#playbook-definitions][Playbook Definitions]]
   - [[#provision-cluster][Provision Cluster]]
     - [[#roles][Roles]]
@@ -138,10 +146,11 @@ vm_cluster_vms:
   - zephyrus
   - notus
   - eurus
-vm_diskspace: 20G
+vm_diskspace: 35G
 vm_mem: 2048
 vm_cpus: 1
 ssh_pub_key: ~/.ssh/anemoi_rsa.pub
+domain_ca_cert: ~/ca.crt
 #+end_src
 
 - vm_cluster_vms: a list of host names. This will be used when customizing each virtual machine image so that when they are spun up they will have a unique hostname on the network.
@@ -202,6 +211,7 @@ vm_pool_dir: "/var/lib/libvirt/images/{{ vmhost_cluster_name }}"
 #+end_src
 
 The vm_working_dir and vm_pool_dir are directories on the host machine.
+
 
 * Playbook Definitions
 
@@ -418,8 +428,10 @@ One key thing to note is the 'ssh-keygen -A' command. In testing I found that I 
   command: |
     virt-customize -a {{ vm_pool_dir }}/{{ vm }}.{{ vm_img_fmt }} \
       --hostname {{ vm }} \
+      --mkdir '/usr/local/share/ca-certificates/domain'
+      --copy-in '{{ domain_ca_cert }}:/usr/local/share/ca-certificates/domain/'
       --ssh-inject 'root:string:{{ lookup('file', '{{ ssh_pub_key }}') }}' \
-      --run-command 'ssh-keygen -A;systemctl start sshd' \
+      --run-command 'ssh-keygen -A;systemctl start sshd;update-ca-certificates' \
       --install python \
       --uninstall cloud-init
   loop: "{{ vm_cluster_vms }}"

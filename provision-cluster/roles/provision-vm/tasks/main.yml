@@ -9,8 +9,10 @@
   command: |
     virt-customize -a {{ vm_pool_dir }}/{{ vm }}.{{ vm_img_fmt }} \
       --hostname {{ vm }} \
+      --mkdir '/usr/local/share/ca-certificates/domain'
+      --copy-in '{{ domain_ca_cert }}:/usr/local/share/ca-certificates/domain/'
       --ssh-inject 'root:string:{{ lookup('file', '{{ ssh_pub_key }}') }}' \
-      --run-command 'ssh-keygen -A;systemctl start sshd' \
+      --run-command 'ssh-keygen -A;systemctl start sshd;update-ca-certificates' \
       --install python \
       --uninstall cloud-init
   loop: "{{ vm_cluster_vms }}"

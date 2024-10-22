@@ -1,6 +1,7 @@
 -*- mode: org; mode: org-make-toc-mode -*-
 #+TITLE: Literate Playbooks
 #+AUTHOR: Tom Hartman
+#+STARTUP: overview
 
 * Table of Contents
 :PROPERTIES:
