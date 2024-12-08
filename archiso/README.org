@@ -31,6 +31,20 @@ And it should regenerate the main.yml ansible playbook with the modifications. A
 
 Emacs is definitely not required to use this guide or playbook and describing the full breath and features of org-babel in terms of literate programming let only org mode in general is far beyond the scope of this guide. It is what I use and not an attempt to re-ignite the great Vi vs Emacs flame war.
 
+* Makefile
+#+begin_src makefile Makefile
+ANSIBLE=ansible-playbook
+HOSTS=inventory/hosts.ini
+EMACS=emacs
+
+.PHONY: tangle archiso
+
+tangle: README.org
+	${EMACS} $< --batch --eval '(org-babel-tangle-file "README.org")'
+
+archiso: tangle
+	${ANSIBLE} -i ${HOSTS} main.yml
+#+end_src
 * Playbook Definition
 ** Basic setup
 
@@ -115,12 +129,12 @@ In order to ssh in as root the following the ssh daemon needs to be configured t
 #+begin_src yaml :tangle main.yml
     - name: Disable root ssh login via password
       ansible.builtin.lineinfile:
-        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config"
+        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config.d/10-archiso.conf"
         line: "PermitRootLogin prohibit-password"
 
     - name: Enable Public key authentication
       ansible.builtin.lineinfile:
-        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config"
+        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config.d/10-archiso.conf"
         line: "PubkeyAuthentication yes"
 #+end_src
 
@@ -193,7 +207,7 @@ And now its finally time to build the new image. Part of the archiso package inc
 
 The build process as well as the custom profile takes up quite a bit of space so it makes sense to clean up these files and folders afterwards. Fortunately everything lives in our working directory so the process is fairly simple.
 
-#+begin_src yaml :tangle main.yml
+#+begin_src
     - name: Clean up the work dir that was created to build the image
       ansible.builtin.file:
         path: "{{ workingdir }}"

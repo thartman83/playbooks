@@ -33,12 +33,12 @@
 
     - name: Disable root ssh login via password
       ansible.builtin.lineinfile:
-        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config"
+        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config.d/10-archiso.conf"
         line: "PermitRootLogin prohibit-password"
 
     - name: Enable Public key authentication
       ansible.builtin.lineinfile:
-        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config"
+        path: "{{ archlive_dir }}/airootfs/etc/ssh/sshd_config.d/10-archiso.conf"
         line: "PubkeyAuthentication yes"
 
     - name: Remove any existing sshd service
@@ -77,8 +77,3 @@
     - name: Build the arch image
       ansible.builtin.shell:
         cmd: "mkarchiso -v -w {{ workingdir }}/work -o {{ workingdir }} {{ archlive_dir }}"
-
-    - name: Clean up the work dir that was created to build the image
-      ansible.builtin.file:
-        path: "{{ workingdir }}"
-        state: absent
