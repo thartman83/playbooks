@@ -1,0 +1,4 @@
+- name: Provision wiki-js
+  hosts: controller
+  roles:
+    - role: deploy-wiki-js

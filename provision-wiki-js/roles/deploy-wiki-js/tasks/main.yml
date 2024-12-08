@@ -1,0 +1,13 @@
+- name: Add wiki js repository to helm
+  kubernetes.core.helm_repository:
+    name: "{{ wiki_js_repo_name }}"
+    repo_url: "{{ wiki_js_repo_url }}"
+
+- name: Deploy wiki js onto the cluster
+  kubernetes.core.helm:
+    name: wiki-js
+    chart_ref: "{{ wiki_js_chart_ref }}"
+    release_namespace: "{{ wiki_js_namespace }}"
+    create_namespace: true
+    update_repo_cache: true
+    wait: true
