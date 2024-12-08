@@ -27,10 +27,10 @@ dnspython_package: python-dnspython
 
 libvirtd_service: libvirtd
 
-vm_img_baseurl: https://cloud.debian.org/images/cloud/buster/
-vm_img_release_date: 20230802-1460
+vm_img_baseurl: https://cloud.debian.org/images/cloud/bullseye/
+vm_img_release_date: 20241007-1893
 vm_img_fmt: qcow2
-vm_img_name: "debian-10-generic-amd64-{{ vm_img_release_date }}.{{ vm_img_fmt }}"
+vm_img_name: "debian-11-generic-amd64-{{ vm_img_release_date }}.{{ vm_img_fmt }}"
 vm_download_url: "{{ vm_img_baseurl }}/{{ vm_img_release_date }}/{{ vm_img_name }}"
 vm_img_checksum_name: SHA512SUMS
 vm_img_checksum_url: "{{ vm_img_baseurl }}/{{ vm_img_release_date }}/{{ vm_img_checksum_name }}"
