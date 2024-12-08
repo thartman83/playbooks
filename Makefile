@@ -18,3 +18,6 @@ cert-manager:
 
 docker-registry:
 	make -C provision-docker-registry provision
+
+jenkins:
+	make -C provision-jenkins provision

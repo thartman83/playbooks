@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ jenkins_service_name }}
+  namespace: {{ jenkins_ns }}
+  annotations:
+    metallb.universe.tf/address-pool: default-pool
+spec:
+  selector:
+    app: {{ jenkins_app }}
+  type: LoadBalancer
+  ports:
+  - port: {{ jenkins_app_http_port }}
+    targetPort: {{ jenkins_app_http_port }}
+  loadBalancerIP: {{ jenkins_app_service_ip }}

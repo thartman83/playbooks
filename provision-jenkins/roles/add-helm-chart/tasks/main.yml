@@ -1,0 +1,4 @@
+- name: Add Jenkins Helm Chart
+  kubernetes.core.helm_repository:
+    name: "{{ jenkins_repo_name }}"
+    repo_url: "{{ jenkins_repo_url }}"
