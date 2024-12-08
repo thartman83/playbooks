@@ -192,10 +192,10 @@ libvirtd_service: libvirtd
 For the VMs we will be using the cloud buster debian image as a base. It will be configured on a per VM basis with other configurations throughout the playbook.
 
 #+begin_src yaml :tangle host_vars/anemoi.yml
-vm_img_baseurl: https://cloud.debian.org/images/cloud/buster/
-vm_img_release_date: 20230802-1460
+vm_img_baseurl: https://cloud.debian.org/images/cloud/bullseye/
+vm_img_release_date: 20241007-1893
 vm_img_fmt: qcow2
-vm_img_name: "debian-10-generic-amd64-{{ vm_img_release_date }}.{{ vm_img_fmt }}"
+vm_img_name: "debian-11-generic-amd64-{{ vm_img_release_date }}.{{ vm_img_fmt }}"
 vm_download_url: "{{ vm_img_baseurl }}/{{ vm_img_release_date }}/{{ vm_img_name }}"
 vm_img_checksum_name: SHA512SUMS
 vm_img_checksum_url: "{{ vm_img_baseurl }}/{{ vm_img_release_date }}/{{ vm_img_checksum_name }}"
@@ -211,7 +211,6 @@ vm_pool_dir: "/var/lib/libvirt/images/{{ vmhost_cluster_name }}"
 #+end_src
 
 The vm_working_dir and vm_pool_dir are directories on the host machine.
-
 
 * Playbook Definitions
 
