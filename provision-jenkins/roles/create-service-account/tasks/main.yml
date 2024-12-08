@@ -1,0 +1,3 @@
+- name: Create the Jenkins Admin Service Account role
+  k8s:
+    definition: "{{ lookup('template', 'templates/serviceAccount.yml') | from_yaml }}"

@@ -1,0 +1,14 @@
+jenkins_ns: jenkins
+jenkins_admin_acct: jenkins-admin
+jenkins_repo_name: jenkins
+jenkins_repo_url: https://charts.jenkins.io
+jenkins_chart_ref: jenkins/jenkins
+jenkins_pvc_name: jenkins-pvc
+jenkins_pvc_size: 10Gi
+jenkins_app: jenkins-server
+jenkins_app_mem_limit: 2Gi
+jenkins_app_cpu_limit: 1000m
+jenkins_app_mem_req: 500Mi
+jenkins_app_cpu_req: 500m
+jenkins_app_http_port: 8080
+jenkins_service_name: jenkins-service

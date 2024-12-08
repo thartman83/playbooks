@@ -1,0 +1,10 @@
+- name: Provision Jenkins on the cluster
+  hosts: controller
+  roles:
+    - role: create-namespace
+    - role: add-helm-chart
+    - role: install-jenkins
+    # - role: create-service-account
+    # - role: create-storage-volume
+    # - role: deploy-jenkins
+    # - role: create-service

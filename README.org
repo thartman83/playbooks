@@ -19,6 +19,7 @@
   - [[#provision-longhorn][Provision Longhorn]]
   - [[#provision-cert-manager][Provision Cert-Manager]]
   - [[#provision-docker-registry][Provision Docker Registry]]
+  - [[#provision-jenkins][Provision Jenkins]]
 :END:
 
 * General
@@ -123,4 +124,13 @@ An ansible playbook to deploy a docker registry for the cluster. The playbook wi
 #+begin_src makefile :tangle Makefile
 docker-registry:
 	make -C provision-docker-registry provision
+#+end_src
+
+** Provision Jenkins
+
+[[file:provision-Jenkins/README.org][Provision Jenkins]]
+
+#+begin_src makefile :tangle Makefile
+jenkins:
+	make -C provision-jenkins provision
 #+end_src

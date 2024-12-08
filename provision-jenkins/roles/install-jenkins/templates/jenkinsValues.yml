@@ -1,0 +1,7 @@
+admin:
+  password: "keepitlikeasecret"
+volumes:
+  - type: PVC
+    claimName: {{ jenkins_pvc_name }}
+    mountPath: /var/jenkins_home
+    readOnly: false

@@ -1,0 +1,4 @@
+---
+- name: Create Persistent Storage Claim
+  k8s:
+    definition: "{{ lookup('template', 'templates/volume.yml') | from_yaml }}"

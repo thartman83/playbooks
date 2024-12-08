@@ -1,0 +1,8 @@
+- name: Install Jenkins
+  kubernetes.core.helm:
+    name: jenkins
+    chart_ref: "{{ jenkins_chart_ref }}"
+    release_namespace: "{{ jenkins_ns }}"
+    update_repo_cache: true
+    wait: true    
+    values: "{{ lookup('template', 'templates/jenkinsValues.yml') | from_yaml }}"

@@ -1,0 +1,3 @@
+- name: Deploy Jenkins to the cluster
+  k8s:
+    definition: "{{ lookup('template', 'templates/deployment.yml') | from_yaml }}"

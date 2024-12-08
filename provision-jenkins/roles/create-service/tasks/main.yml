@@ -1,0 +1,3 @@
+- name: Create Service
+  k8s:
+    definition: "{{ lookup('template', 'templates/service.yml') | from_yaml }}"

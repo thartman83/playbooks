@@ -1,0 +1,265 @@
+-*- mode: org; mode: org-make-toc-mode -*-
+#+TITLE: Provision Jenkins to the cluster
+#+AUTHOR: Tom Hartman
+#+STARTUP: overview
+* Table of Contents
+:PROPERTIES:
+:TOC: :include all :ignore this
+:END:
+:CONTENTS:
+
+* General
+
+Using the guide found here: https://www.jenkins.io/doc/book/installing/kubernetes/
+
+* Makefile
+
+#+begin_src makefile :tangle Makefile
+ANSIBLE= ansible-playbook
+HOSTS=inventory/hosts.ini
+EMACS=emacs
+
+.PHONY: provision
+
+tangle: README.org
+	emacs $< --batch --eval '(org-babel-tangle-file "README.org")'
+
+provision: tangle
+	${ANSIBLE} -i ${HOSTS} provision-jenkins.yml
+#+end_src
+
+* Inventory
+#+begin_src ini :tangle inventory/hosts.ini
+[controller]
+boreas
+#+end_src
+
+* Group Vars
+#+begin_src yaml :tangle group_vars/all
+jenkins_ns: jenkins
+jenkins_admin_acct: jenkins-admin
+jenkins_repo_name: jenkins
+jenkins_repo_url: https://charts.jenkins.io
+jenkins_chart_ref: jenkins/jenkins
+jenkins_pvc_name: jenkins-pvc
+jenkins_pvc_size: 10Gi
+jenkins_app: jenkins-server
+jenkins_app_mem_limit: 2Gi
+jenkins_app_cpu_limit: 1000m
+jenkins_app_mem_req: 500Mi
+jenkins_app_cpu_req: 500m
+jenkins_app_http_port: 8080
+jenkins_service_name: jenkins-service
+#+end_src
+
+* Playbooks
+#+begin_src yaml :tangle provision-jenkins.yml
+- name: Provision Jenkins on the cluster
+  hosts: controller
+  roles:
+    - role: create-namespace
+    - role: add-helm-chart
+    - role: install-jenkins
+    # - role: create-service-account
+    # - role: create-storage-volume
+    # - role: deploy-jenkins
+    # - role: create-service
+#+end_src
+
+* Roles
+
+** Create Namespace
+#+begin_src yaml :tangle roles/create-namespace/tasks/main.yml
+- name: Create Jenkins Namespace
+  kubernetes.core.k8s:
+    name: "{{ jenkins_ns }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+#+end_src
+
+** Add Helm Chart
+#+begin_src yaml :tangle roles/add-helm-chart/tasks/main.yml
+- name: Add Jenkins Helm Chart
+  kubernetes.core.helm_repository:
+    name: "{{ jenkins_repo_name }}"
+    repo_url: "{{ jenkins_repo_url }}"
+#+end_src
+
+** Install Jenkins
+
+#+begin_src yaml :tangle roles/install-jenkins/templates/jenkinsValues.yml
+admin:
+  password: "keepitlikeasecret"
+volumes:
+  - type: PVC
+    claimName: {{ jenkins_pvc_name }}
+    mountPath: /var/jenkins_home
+    readOnly: false
+#+end_src
+
+#+begin_src yaml :tangle roles/install-jenkins/tasks/main.yml
+- name: Install Jenkins
+  kubernetes.core.helm:
+    name: jenkins
+    chart_ref: "{{ jenkins_chart_ref }}"
+    release_namespace: "{{ jenkins_ns }}"
+    update_repo_cache: true
+    wait: true    
+    values: "{{ lookup('template', 'templates/jenkinsValues.yml') | from_yaml }}"        
+#+end_src
+
+** Create Service Account
+
+#+begin_src yaml :tangle roles/create-service-account/templates/serviceAccount.yml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "{{ jenkins_admin_acct }}"
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ jenkins_admin_acct }}"
+  namespace: "{{ jenkins_ns }}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ jenkins_admin_acct }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "{{ jenkins_admin_acct }}"
+subjects:
+- kind: ServiceAccount
+  name: "{{ jenkins_admin_acct }}"
+  namespace: "{{ jenkins_ns }}"
+#+end_src
+
+#+begin_src yaml :tangle roles/create-service-account/tasks/main.yml
+- name: Create the Jenkins Admin Service Account role
+  k8s:
+    definition: "{{ lookup('template', 'templates/serviceAccount.yml') | from_yaml }}"
+#+end_src
+
+** Create Storage Volume
+
+#+begin_src yaml :tangle roles/create-storage-volume/templates/volume.yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ jenkins_pvc_name }}
+  namespace: {{ jenkins_ns }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: {{ jenkins_pvc_size }}
+#+end_src
+
+#+begin_src yaml :tangle roles/create-storage-volume/tasks/main.yml
+---
+- name: Create Persistent Storage Claim
+  k8s:
+    definition: "{{ lookup('template', 'templates/volume.yml') | from_yaml }}"
+#+end_src
+
+** Deploy Jenkins
+#+begin_src yaml :tangle roles/deploy-jenkins/templates/deployment.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: {{ jenkins_ns }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ jenkins_app }}
+  template:
+    metadata:
+      labels:
+        app: {{ jenkins_app }}
+    spec:
+      securityContext:
+            fsGroup: 1000
+            runAsUser: 1000
+      serviceAccountName: "{{ jenkins_admin_acct }}"
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts
+          resources:
+            limits:
+              memory: "{{ jenkins_app_mem_limit }}"
+              cpu: "{{ jenkins_app_cpu_limit }}"
+            requests:
+              memory: "{{ jenkins_app_mem_req }}"
+              cpu: "{{ jenkins_app_cpu_req }}"
+          ports:
+            - name: httpport
+              containerPort: {{ jenkins_app_http_port }}
+            - name: jnlpport
+              containerPort: 50000
+          livenessProbe:
+            httpGet:
+              path: "/login"
+              port: {{ jenkins_app_http_port }}
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: "/login"
+              port: {{ jenkins_app_http_port }}
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: jenkins-data
+              mountPath: /var/jenkins_home
+      volumes:
+        - name: jenkins-data
+          persistentVolumeClaim:
+              claimName: {{ jenkins_pvc_name }}
+#+end_src
+
+#+begin_src yaml :tangle roles/deploy-jenkins/tasks/main.yml
+- name: Deploy Jenkins to the cluster
+  k8s:
+    definition: "{{ lookup('template', 'templates/deployment.yml') | from_yaml }}"
+#+end_src
+
+** Create Service
+#+begin_src yaml :tangle roles/create-service/templates/service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ jenkins_service_name }}
+  namespace: {{ jenkins_ns }}
+  annotations:
+    metallb.universe.tf/address-pool: default-pool
+spec:
+  selector:
+    app: {{ jenkins_app }}
+  type: LoadBalancer
+  ports:
+  - port: {{ jenkins_app_http_port }}
+    targetPort: {{ jenkins_app_http_port }}
+  loadBalancerIP: {{ jenkins_app_service_ip }}
+#+end_src
+
+#+begin_src yaml :tangle roles/create-service/tasks/main.yml
+- name: Create Service
+  k8s:
+    definition: "{{ lookup('template', 'templates/service.yml') | from_yaml }}"
+#+end_src
