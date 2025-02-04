@@ -4,4 +4,5 @@
   roles:
     - role: destroy-vms
     - role: destroy-cluster-pool
-    - role: cleanup-tmp-workdir
+    - role: destroy-network
+#    - role: cleanup-tmp-workdir

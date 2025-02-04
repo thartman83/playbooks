@@ -134,3 +134,9 @@ docker-registry:
 jenkins:
 	make -C provision-jenkins provision
 #+end_src
+
+** Provision Postgresql
+#+begin_src makefile :tangle Makefile
+postgresql:
+	make -C provision-postgresql provision
+#+end_src

@@ -21,3 +21,6 @@ docker-registry:
 
 jenkins:
 	make -C provision-jenkins provision
+
+postgresql:
+	make -C provision-postgresql provision

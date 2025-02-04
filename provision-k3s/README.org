@@ -93,7 +93,7 @@ Group variables to note are the following:
 
 #+begin_src yaml :tangle group_vars/all
 k3spasswd: k3spasswd
-net_prefix: 172.17.1.
+net_prefix: 172.17.2.
 k3s_primary_controller: boreas
 k3s_nodes:
   - boreas
@@ -109,7 +109,7 @@ helm_gpgkey: "672C 657B E06B 4B30 969C 4A57 4614 49C2 5E36 B98E"
 
 metallb_helm_repourl: https://metallb.github.io/metallb
 metallb_namespace: metallb-system
-metallb_iprange: 172.17.1.60-172.17.1.69
+metallb_iprange: 172.17.2.10-172.17.2.254
 #+end_src
 
 * Playbook Definition
@@ -171,22 +171,6 @@ First step is to install k3s on the controllers. First we check to see if the co
   changed_when: "which_k3s.rc == 1"
 #+end_src
 
-K3s will need to know what the ip address is of the controller
-
-#+begin_src yaml :tangle roles/k3s-controller/tasks/main.yml
-- name: Get the ip address
-  tags: k3s-controller
-  shell:
-    cmd: |-
-      ip a | sed -n '{{ ipaddr_regex }}'
-  vars:
-    ipaddr_regex: 's/.*inet \({{ net_prefix }}[0-9]*\).*/\1/p'
-  register: ipaddr
-  when: "which_k3s.rc == 1"
-#+end_src
-
-Again doing this using commands rather than built commands feels a little off but it works.
-
 And now we do something we know we shouldn't do and curl directly into a subshell but again this is the normal installation method unfortunately.
 
 #+begin_src yaml :tangle roles/k3s-controller/tasks/main.yml
@@ -194,7 +178,7 @@ And now we do something we know we shouldn't do and curl directly into a subshel
   tags: k3s-controller
   shell:
     cmd: |-
-      curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644 --disable servicelb --token "{{ k3spasswd }}" --node-ip "{{ ipaddr.stdout }}" --disable-cloud-controller --disable local-storage
+      curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644 --disable servicelb --token "{{ k3spasswd }}" --node-ip "{{ ansible_default_ipv4.address|default(ansible_all_ipv4_addresses[0]) }}" --disable-cloud-controller --disable local-storage
   when: "which_k3s.rc == 1"
 
 - name: Reboot controller nodes

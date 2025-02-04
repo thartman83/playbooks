@@ -6,6 +6,7 @@
     - role: virtualization-checks
     - role: virtualization-packages
     - role: virtualization-services
-    - role: prepare-vm-dirs
+    - role: prepare-vm-host
     - role: download-vm-image
+    - role: provision-vm-network
     - role: provision-vm

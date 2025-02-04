@@ -66,7 +66,7 @@ The key group vars to pay attention to is the loadbalancer_ip which will define 
 longhorn_storage_dir: /storage
 longhorn_helm_repourl: https://charts.longhorn.io
 longhorn_namespace: longhorn-system
-longhorn_loadbalancer_ip: 172.17.1.61
+longhorn_loadbalancer_ip: 172.17.2.11
 #+end_src
 
 * Playbooks

@@ -34,3 +34,40 @@
   loop: "{{ vm_cluster_vms }}"
   loop_control:
     index_var: idx
+
+- name: Wait for vms to become available
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Allow forward traffic from 172.17.2.0/24 to 172.17.1.0/24 via kvmbr0 and eno1
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: kvmbr0
+    out_interface: eno1
+    source: 172.17.2.0/24
+    destination: 172.17.1.0/24
+    action: insert
+    rule_num: 1
+    jump: ACCEPT
+    state: present
+
+- name: Allow forward traffic from 172.17.1.0/24 to 172.17.2.0/24 via eno1 and kvmbr0
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: eno1
+    out_interface: kvmbr0
+    source: 172.17.1.0/24
+    destination: 172.17.2.0/24
+    action: insert
+    rule_num: 1
+    jump: ACCEPT
+    state: present
+
+- name: Add iptables nat masquerade rule
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ vm_cluster_bridge_net }}"
+    out_interface: "{{ vmhost_bridge_iface }}"
+    jump: MASQUERADE
+    state: present

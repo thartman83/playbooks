@@ -75,19 +75,14 @@ ansible-playbook -i inventory/hosts unprovision-cluster.yml
 #+end_src
 ** Additional Configurations
 
-If you are planning on spinning these vms up and down repeatedly for convenience you should consider configuring your dhcp server to issue static leases to the mac addresses of the VMs. This will make adding ssh configuration a lot simpler and will cut down on arp table silliness. Additionally because each time the VM comes up it will have a different ssh host signature I recommend disabling strict host checking for these IPs for the vm hosts in your ssh config. It will cut down on random entries in your known_hosts file and will make them easier to use for subsequent playbooks/ansible tasks. See below for example configuration.
+*** Firewall routes
 
-#+begin_src conf
-Host boreas
-     Hostname 172.17.1.220
-     User root
-     IdentityFile ssh_rsa
-     IdentitiesOnly yes
-     StrictHostKeyChecking no
-     UserKnownHostsFile /dev/null
-#+end_src
+In order to properly access the cluster network you will need to make the following updates to your firewall specifically you will need to add a new gateway and static route for all traffic to the new subnet to the vm host.
 
-There are obvious security concerns with disabling host key checking so beware that those do exist. However if you are running these in a home lab like I am, those concerns are somewhat minimal.
+How to accomplish this is going to be network/firewall dependent. You can alternatively add the route manually for each machine that needs access to the subnet.
+
+On mine (opnsense) after creating the static route I needed to change the firewall rules to conservative otherwise connections would trip some sort of state timeout and would be dropped by the firewall.
+
 ** Debuging
 If you are having trouble accessing the VMs after they have been provisioned I recommend adding the following line to the virt-customize role command, and re-provisioning them.
 
@@ -102,6 +97,30 @@ sudo virsh console boreas
 #+end_src
 
 Then you can debug access issues from within the virtual machine.
+
+* Todo
+
+- Add when to the script creation, also since it no long bounces the main eno1 connection move from script to raw ansible
+
+* Makefile
+Define a makefile to conveniently run the playbooks for provision and unprovisioning the cluster. We also want to re-tangle the playbook whenever we compile for ease of development. We will need to manually tangle the file once but afterwards re-compiling will take care of any changes and updates to the literate org file.
+
+#+begin_src makfile :tangle Makefile
+ANSIBLE= ansible-playbook
+HOSTS=inventory/hosts.ini
+EMACS=emacs
+
+.PHONY: provision unprovision tangle
+
+tangle: README.org
+	emacs $< --batch --eval '(org-babel-tangle-file "README.org")'
+
+provision: tangle
+	${ANSIBLE} -i ${HOSTS} provision-cluster.yml
+
+unprovision: tangle
+	${ANSIBLE} -i ${HOSTS} unprovision-cluster.yml
+#+end_src
 
 * Inventory
 
@@ -125,6 +144,10 @@ In addition to re-naming the file to match the vm host name, the following top l
 #+begin_src yaml :tangle host_vars/anemoi.yml
 vmhost_cluster_name: anemoi
 vmhost_iface_name: eno1
+vmhost_bridge_iface: kvmbr0
+vmhost_ip_addr: 172.17.1.4/24
+vmhost_net: 172.17.1.0/24
+vmhost_route_addr: 172.17.1.1
 #+end_src
 
 The variable `vmhost_cluster_name` is used through out the playbook to customize other variables to keep things organized, segmented, and to prevent name collision. For simplicities sake I have made this the same name as the vm host but this can be updated as needed.
@@ -134,6 +157,10 @@ The variable `vmhost_iface_name`is the name of the physical network interface on
 #+begin_src shell
 ip -br a | grep UP | cut -f1 -d' '
 #+end_src
+
+vmhost_bridge_name is the name of the bridge that will be created to route traffic to and from the cluster subnet.
+
+vmhost_ip_addr is the static ip address for the host that we will eventually bind to the bridge interface.
 
 The device will be used when specifying the networking portion of the virtual machines so that they can be bridged properly on to the network and be accessible from outside the vm host via macvtap bridges.
 
@@ -146,6 +173,23 @@ vm_cluster_vms:
   - zephyrus
   - notus
   - eurus
+
+vm_cluster_ips:
+  - name: boreas
+    ip: 172.17.2.2
+  - name: zephyrus
+    ip: 172.17.2.3
+  - name: notus
+    ip: 172.17.2.4
+  - name: eurus
+    ip: 172.17.2.5
+
+vm_cluster_bridge_net: 172.17.2.0/24
+vm_cluster_bridge_ip: 172.17.2.1
+vm_cluster_bridge_mask: 255.255.255.0
+vm_cluster_bridge_dhcp_start: 172.17.2.2
+vm_cluster_bridge_dhcp_end: 172.17.2.254
+
 vm_diskspace: 35G
 vm_mem: 2048
 vm_cpus: 1
@@ -177,6 +221,7 @@ bridge_utils_package: bridge-utils
 qemu_img_package: qemu-img
 libvirt_package: libvirt
 dnspython_package: python-dnspython
+bridge_utils: bridge-utils
 #+end_src
 
 ** VM Host Services
@@ -229,8 +274,9 @@ We begin with a general playbook definition and setup, providing the name, the h
     - role: virtualization-checks
     - role: virtualization-packages
     - role: virtualization-services
-    - role: prepare-vm-dirs
+    - role: prepare-vm-host
     - role: download-vm-image
+    - role: provision-vm-network
     - role: provision-vm
 #+end_src
 
@@ -304,11 +350,23 @@ We will also need to make sure that the libvirtd service has been started. Again
 #+end_src
 
 **** Preparing virtualization environment
+
+***** Tasks
+We will performing the following tasks to prepare the host for virtualization.
+
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/main.yml
+- import_tasks: create-volume-pool.yml
+- import_tasks: ipv4-forwarding.yml
+- import_tasks: iptables-backend.yml
+#- import_tasks: create-bridge.yml
+#+end_src
+
+***** Volume pool
 Before we can create the VMs we have some libvirt setup to do. Specifically we need to create a volume pool where the vm disk images will live in as well as define a network for the cluster to use. This is done so that spinning down the virtual machines can be done in a clean manner without cluttering the qemu:///system space with entries in the default pool and default network. When the vms are ready to come down we can destroy the volume pool as well as the network without impacting any other virtual machines that may live on the host.
 
 Start by creating the directory where the virtual machine disk volumes will reside, using the vm_pool_dir variable defined in the host_args. This defaults to /var/lib/libvirt/images/{{ cluster_name }} but can be configured as needed.
 
-#+begin_src yaml :tangle roles/prepare-vm-dirs/tasks/main.yml
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/create-volume-pool.yml
 ---
 
 - name: Create the cluster volume pool directory
@@ -319,7 +377,7 @@ Start by creating the directory where the virtual machine disk volumes will resi
 
 With the location created we can let libvirt know to assoicate the new cluster pool with that folder. Once the pool has been turned on in qemu we can associate disk images as part of the cluster pool. The xml definition of the cluster pool is pretty simple, defining the pool '{{ vm_cluster_pool }} with the directory created in the previous task and set some reasonable permissions on accessing the volumes within the pool. With the new pool defined we can activate it.
 
-#+begin_src yaml :tangle roles/prepare-vm-dirs/tasks/main.yml
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/create-volume-pool.yml
 
 - name: Create the cluster volume pool using libvirt
   community.libvirt.virt_pool:
@@ -348,6 +406,68 @@ With the location created we can let libvirt know to assoicate the new cluster p
 #+end_src
 
 With the storage area taken care we move on to prepare the network that the VMs will live on.
+
+***** Networking
+We will be setting up the vms as part of a routed network to provide ease of access outside the vm host. We will need to enable ipv4 forwarding as part of this setup.
+
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/ipv4-forwarding.yml
+- name: Enable ipv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true    
+#+end_src
+
+We also need to make sure that libvirt uses iptables as the firewall backend so that the appropriate rules are created when the network is eventually created.
+
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/iptables-backend.yml
+- name: Add iptables as default firewall backend
+  ansible.builtin.lineinfile:
+    path: /etc/libvirt/network.conf
+    line: 'firewall_backend="iptables"'
+
+#+end_src
+
+Additionally we need to create a bridge and bind the existing static ip address to it so that traffic will properly flow to and from the cluster subnet. This has to be run as a script because binding the existing interface to the bridge and removing/adding the ip address will cause the remote server to be unavailable if not done in quick succession.
+
+#+begin_src shell :tangle roles/prepare-vm-host/templates/create_bridge.sh
+#!/bin/bash
+# ip link add name {{ vmhost_bridge_iface }} type bridge
+# ip link set dev {{ vmhost_bridge_iface }} up
+# ip address add {{ vm_cluster_bridge_ip }}/24 dev {{ vmhost_bridge_iface }}
+# ip route add {{ vm_cluster_bridge_net }} dev {{ vmhost_bridge_iface }}
+
+#ip route append default via {{ vmhost_route_addr }} dev {{ vmhost_bridge_iface }}
+#ip link set {{ vmhost_iface_name }} master {{ vmhost_bridge_iface }}
+#ip address del {{ vmhost_ip_addr }} dev {{ vmhost_iface_name }}
+#+end_src
+
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/create-bridge.yml
+# - name: Copy the script to the host
+#   ansible.builtin.template:
+#     src: templates/create_bridge.sh
+#     dest: /tmp/create_bridge.sh
+#     mode: '0700'
+#     force: false
+
+# - name: Create the bridge
+#   ansible.builtin.command:
+#     sh /tmp/create_bridge.sh
+#+end_src
+
+We need to add an additional postrouting rule to iptables to make sure that the vm hosts can reach the outside network. This is going to be the functional equivalent of:
+
+#+begin_src shell
+iptables -A FORWARD -i {{ vmhost_bridge_iface }} -o {{ vmhost_iface_name }} -j ACCEPT
+iptables -A FORWARD -o {{ vmhost_bridge_iface }} -i {{ vmhost_iface_name }} -j ACCEPT
+iptables -t nat -A POSTROUTING -s {{ vm_cluster_bridge_net }} -j MASQUERADE
+#+end_src
+
+#+begin_src yaml :tangle roles/prepare-vm-host/tasks/create-bridge.yml
+
+#+end_src
 
 **** Download the base VM image
 
@@ -399,6 +519,50 @@ Resize the downloaded image to the size specified in the host variables.
   command: qemu-img resize "{{ vm_working_dir }}/{{ vm_img_name }}" "{{ vm_diskspace }}"
 
 #+end_src
+
+**** Provision the network for the VMS
+We will be setting up a routed virtual network for the vms with static IP address to provide access to the vms outside of the host.
+
+#+begin_src xml :tangle roles/provision-vm-network/templates/vm-network.xml
+<network>
+  <name>{{ vmhost_cluster_name }}</name>
+  <forward mode='nat' />
+  <bridge name='kvmbr0' stp='on' delay='0'/>
+  <mac address='52:54:00:12:fe:35'/>
+  <ip address='{{ vm_cluster_bridge_ip }}' netmask='{{ vm_cluster_bridge_mask }}'>
+    <dhcp>
+      <range start='{{ vm_cluster_bridge_dhcp_start }}' end='{{ vm_cluster_bridge_dhcp_end }}'/>
+      {% for item in vm_cluster_ips %}
+      <host name="{{ item.name }}" ip="{{ item.ip }}" />
+      {% endfor %}
+    </dhcp>
+  </ip>
+</network>
+#+end_src
+
+#+begin_src yaml :tangle roles/provision-vm-network/tasks/main.yml
+- name: Create the virtual network
+  community.libvirt.virt_net:
+    command: define
+    name: "{{ vmhost_cluster_name }}"
+    xml: "{{ lookup('template', 'templates/vm-network.xml') }}"
+
+- name: Activate the new network
+  community.libvirt.virt_net:
+    state: active
+    name: "{{ vmhost_cluster_name }}"
+#+end_src
+
+We need to add an additional postrouting rule to iptables to make sure that the vm hosts can reach the outside network. This is going to be the functional equivalent of:
+
+#+begin_src shell
+iptables -t nat -A POSTROUTING -s 172.17.2.0/24 -o br0 -j MASQUERADE
+#+end_src
+
+#+begin_src yaml :tangle roles/provision-vm-network/tasks/main.yml
+
+#+end_src
+
 
 **** Provision the VMs
 
@@ -458,9 +622,8 @@ The counterpart to the operating system configuration is the actual virtual mach
       <target dev='vda' bus='virtio'/>
       <address type='pci' domain='0x0000' bus='0x05' slot='0x00' function='0x0'/>
     </disk>
-    <interface type='direct'>
-      <mac address="12:34:56:78:9a:b{{ idx }}" />
-      <source dev="{{ vmhost_iface_name }}" mode="bridge" />
+    <interface type='network'>
+      <source network="{{ vmhost_cluster_name }}" />
       <model type='virtio' />
       <driver name="vhost" />
     </interface>
@@ -485,7 +648,7 @@ The counterpart to the operating system configuration is the actual virtual mach
 </domain>
 #+end_src
 
-The network configuration for the virtual machine is setup to use the host's network port as defined in the host variable `vmhost_iface_name' and using macvtap drivers to bridge the vm's network to the hosts network, making it accesible to the host's network at large rather than running the cluster in it's own NAT'd network. This will make it so that the VMs will be accessible within the network and can again have further playbooks applied to them. Because each vm will need its own unique mac address we will use the base of `12:34:56:78:9a:b` followed by the index number of the vm being created to do so.
+The network configuration for the virtual machine is setup to use the host's network port as defined in the host variable `vmhost_iface_name' and using macvtap drivers to bridge the vm's network to the hosts network, making it accesible to the host's network at large rather than running the cluster in it's own NAT'd network. This will make it so that the VMs will be accessible within the network and can again have further playbooks applied to them. Because each vm will need its own unique mac address we will use the base of `fe:34:56:78:9a:b` followed by the index number of the vm being created to do so.
 
 #+begin_src yaml :tangle roles/provision-vm/tasks/main.yml
 
@@ -505,8 +668,47 @@ The network configuration for the virtual machine is setup to use the host's net
   loop_control:
     index_var: idx
 
+- name: Wait for vms to become available
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Allow forward traffic from 172.17.2.0/24 to 172.17.1.0/24 via kvmbr0 and eno1
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: kvmbr0
+    out_interface: eno1
+    source: 172.17.2.0/24
+    destination: 172.17.1.0/24
+    action: insert
+    rule_num: 1
+    jump: ACCEPT
+    state: present
+
+- name: Allow forward traffic from 172.17.1.0/24 to 172.17.2.0/24 via eno1 and kvmbr0
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: eno1
+    out_interface: kvmbr0
+    source: 172.17.1.0/24
+    destination: 172.17.2.0/24
+    action: insert
+    rule_num: 1
+    jump: ACCEPT
+    state: present
+
+- name: Add iptables nat masquerade rule
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ vm_cluster_bridge_net }}"
+    out_interface: "{{ vmhost_bridge_iface }}"
+    jump: MASQUERADE
+    state: present
 #+end_src
 
+#+begin_src sh
+sudo ip route add 172.17.2.0/24 via 172.17.1.4 dev enp0s31f6
+#+end_src
 
 ** Unprovision Cluster
 
@@ -519,7 +721,8 @@ The `unprovision-cluster.yml' unsurprisingly will undo all of the work that its 
   roles:
     - role: destroy-vms
     - role: destroy-cluster-pool
-    - role: cleanup-tmp-workdir
+    - role: destroy-network
+#    - role: cleanup-tmp-workdir
 #+end_src
 
 *** Roles
@@ -551,6 +754,41 @@ The `unprovision-cluster.yml' unsurprisingly will undo all of the work that its 
     loop_var: vm
 
 #+end_src
+**** Destroy the Virtual Network
+We need to tear down the routed network next now that the vms have been removed. This is a two step process to first deactivate it (destroy) and then delete it (undefine).
+
+#+begin_src yaml :tangle roles/destroy-network/tasks/main.yml
+ - name: Remove the routed virtual nebtwork
+   community.libvirt.virt_net:
+     command: destroy
+     name: "{{ vmhost_cluster_name }}"
+
+ - name: Remove the routed virtual nebtwork
+   community.libvirt.virt_net:
+     command: undefine
+     name: "{{ vmhost_cluster_name }}"
+#+end_src
+
+Next we need to remove the bridge. Just as before this has to be handled as a script to avoid losing access to the server.
+
+#+begin_src shell :tangle roles/destroy-network/templates/destroy_bridge.sh
+#!/bin/bash
+ip link set {{ vmhost_bridge_iface }} down
+ip link del {{ vmhost_bridge_iface }}
+#+end_src
+
+#+begin_src yaml :tangle roles/destroy-network/tasks/main.yml
+
+# - name: Copy the script to the host
+#   ansible.builtin.template:
+#     src: templates/destroy_bridge.sh
+#     dest: /tmp/destroy_bridge.sh
+#     mode: '0700'
+
+# - name: Destroy the bridge
+#   ansible.builtin.command:
+#     sh /tmp/destroy_bridge.sh
+#+End_src
 
 **** Destroy Cluster Images and Pool
 

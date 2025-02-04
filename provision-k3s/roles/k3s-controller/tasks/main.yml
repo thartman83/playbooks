@@ -5,21 +5,11 @@
   ignore_errors: True
   changed_when: "which_k3s.rc == 1"
 
-- name: Get the ip address
-  tags: k3s-controller
-  shell:
-    cmd: |-
-      ip a | sed -n '{{ ipaddr_regex }}'
-  vars:
-    ipaddr_regex: 's/.*inet \({{ net_prefix }}[0-9]*\).*/\1/p'
-  register: ipaddr
-  when: "which_k3s.rc == 1"
-
 - name: Provision the controller nodes
   tags: k3s-controller
   shell:
     cmd: |-
-      curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644 --disable servicelb --token "{{ k3spasswd }}" --node-ip "{{ ipaddr.stdout }}" --disable-cloud-controller --disable local-storage
+      curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644 --disable servicelb --token "{{ k3spasswd }}" --node-ip "{{ ansible_default_ipv4.address|default(ansible_all_ipv4_addresses[0]) }}" --disable-cloud-controller --disable local-storage
   when: "which_k3s.rc == 1"
 
 - name: Reboot controller nodes

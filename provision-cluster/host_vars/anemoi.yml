@@ -1,11 +1,32 @@
 vmhost_cluster_name: anemoi
 vmhost_iface_name: eno1
+vmhost_bridge_iface: kvmbr0
+vmhost_ip_addr: 172.17.1.4/24
+vmhost_net: 172.17.1.0/24
+vmhost_route_addr: 172.17.1.1
 
 vm_cluster_vms:
   - boreas
   - zephyrus
   - notus
   - eurus
+
+vm_cluster_ips:
+  - name: boreas
+    ip: 172.17.2.2
+  - name: zephyrus
+    ip: 172.17.2.3
+  - name: notus
+    ip: 172.17.2.4
+  - name: eurus
+    ip: 172.17.2.5
+
+vm_cluster_bridge_net: 172.17.2.0/24
+vm_cluster_bridge_ip: 172.17.2.1
+vm_cluster_bridge_mask: 255.255.255.0
+vm_cluster_bridge_dhcp_start: 172.17.2.2
+vm_cluster_bridge_dhcp_end: 172.17.2.254
+
 vm_diskspace: 35G
 vm_mem: 2048
 vm_cpus: 1
@@ -24,6 +45,7 @@ bridge_utils_package: bridge-utils
 qemu_img_package: qemu-img
 libvirt_package: libvirt
 dnspython_package: python-dnspython
+bridge_utils: bridge-utils
 
 libvirtd_service: libvirtd
 
