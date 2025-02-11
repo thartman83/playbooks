@@ -1,0 +1,18 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {{ vmhost_iface_name }}:
+      dhcp4: false
+      addresses: [172.17.1.4/24]
+  
+  bridges:
+    br0:
+      interfaces: [{{ vmhost_iface_name }}]
+      addresses: [172.17.1.4/24]
+      routes:
+        - to: 172.178.2.0/24
+          via: 172.17.1.4
+      mtu: 1500
+      dhcp4: no
+      dhcp6: no

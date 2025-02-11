@@ -1,0 +1,12 @@
+# - name: Copy the script to the host
+#   ansible.builtin.template:
+#     src: templates/create_bridge.sh
+#     dest: /tmp/create_bridge.sh
+#     mode: '0700'
+#     force: false
+
+# - name: Create the bridge
+#   ansible.builtin.command:
+#     sh /tmp/create_bridge.sh
+
+

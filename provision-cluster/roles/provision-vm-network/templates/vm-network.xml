@@ -1,0 +1,14 @@
+<network>
+  <name>{{ vmhost_cluster_name }}</name>
+  <forward mode='nat' />
+  <bridge name='kvmbr0' stp='on' delay='0'/>
+  <mac address='52:54:00:12:fe:35'/>
+  <ip address='{{ vm_cluster_bridge_ip }}' netmask='{{ vm_cluster_bridge_mask }}'>
+    <dhcp>
+      <range start='{{ vm_cluster_bridge_dhcp_start }}' end='{{ vm_cluster_bridge_dhcp_end }}'/>
+      {% for item in vm_cluster_ips %}
+      <host name="{{ item.name }}" ip="{{ item.ip }}" />
+      {% endfor %}
+    </dhcp>
+  </ip>
+</network>

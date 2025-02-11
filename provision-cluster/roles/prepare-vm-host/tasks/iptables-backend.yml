@@ -1,0 +1,4 @@
+- name: Add iptables as default firewall backend
+  ansible.builtin.lineinfile:
+    path: /etc/libvirt/network.conf
+    line: 'firewall_backend="iptables"'

@@ -1,0 +1,12 @@
+- name: Create the virtual network
+  community.libvirt.virt_net:
+    command: define
+    name: "{{ vmhost_cluster_name }}"
+    xml: "{{ lookup('template', 'templates/vm-network.xml') }}"
+
+- name: Activate the new network
+  community.libvirt.virt_net:
+    state: active
+    name: "{{ vmhost_cluster_name }}"
+
+

@@ -1,0 +1,19 @@
+- name: Remove the routed virtual nebtwork
+  community.libvirt.virt_net:
+    command: destroy
+    name: "{{ vmhost_cluster_name }}"
+
+- name: Remove the routed virtual nebtwork
+  community.libvirt.virt_net:
+    command: undefine
+    name: "{{ vmhost_cluster_name }}"
+
+# - name: Copy the script to the host
+#   ansible.builtin.template:
+#     src: templates/destroy_bridge.sh
+#     dest: /tmp/destroy_bridge.sh
+#     mode: '0700'
+
+# - name: Destroy the bridge
+#   ansible.builtin.command:
+#     sh /tmp/destroy_bridge.sh

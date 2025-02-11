@@ -1,0 +1,30 @@
+---
+
+- name: Create the cluster volume pool directory
+  file:
+    path: "{{ vm_pool_dir }}"
+    state: directory
+
+- name: Create the cluster volume pool using libvirt
+  community.libvirt.virt_pool:
+    command: define
+    name: "{{ vm_cluster_pool }}"
+    xml: |-
+      <pool type='dir'>
+        <name>{{ vm_cluster_pool }}</name>
+        <target>
+          <path>{{ vm_pool_dir }}</path>
+          <permissions>
+            <mode>0755</mode>
+            <owner>0</owner>
+            <group>0</group>
+          </permissions>
+        </target>
+      </pool>
+    state: present
+
+- name: Activate the created pool
+  community.libvirt.virt_pool:
+    command: start
+    name: "{{ vm_cluster_pool }}"
+    state: active
