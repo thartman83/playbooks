@@ -4,6 +4,9 @@ archiso:
 cluster:
 	make -C provision-cluster provision
 
+cluster-all:
+	make cluster k3s longhorn cert-manager docker-registry
+
 clean_cluster:
 	make -C provision-cluster unprovision
 

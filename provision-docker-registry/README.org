@@ -87,7 +87,7 @@ docker_reg_pvc_size: 5Gi
 docker_reg_replicas: 1
 docker_reg_container_port: 5000
 docker_reg_service_name: docker-registry-service
-docker_reg_service_ip: 172.17.2.11
+docker_reg_service_ip: 172.17.2.12
 cert_manager_issuer: cert-manager-issuer
 #+end_src
 
